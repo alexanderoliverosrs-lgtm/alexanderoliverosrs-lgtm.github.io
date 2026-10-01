@@ -59,7 +59,47 @@ function receiptCountryChanged(){rcRate.value=rcCountry.value==="VE"?ves.value:c
 function updateReceiptTotal(){const u=Number(rcUsd.value||0),r=Number(rcRate.value||0),cur=rcCountry.value==="VE"?"Bs":"COP";rcLocal.value=u&&r?(u*r).toLocaleString("es-US",{maximumFractionDigits:2})+" "+cur:""}
 async function createReceipt(){const name=rcName.value.trim(),usd=Number(rcUsd.value||0),rate=Number(rcRate.value||0);if(!name){alert("Escribe el nombre del cliente.");return}if(!usd||usd<=0||!rate||rate<=0){alert("Revisa el monto y la tasa.");return}const local=usd*rate,country=rcCountry.value==="VE"?"Venezuela":"Colombia",currency=rcCountry.value==="VE"?"VES":"COP",method=rcMethod.value;const {data,error}=await db.from("receipts").insert({customer_name:name,country,usd_amount:usd,exchange_rate:rate,local_amount:local,local_currency:currency,payment_method:method,status:"COMPLETADA"}).select("id,created_at").single();if(error){console.error(error);alert("No se pudo guardar el recibo: "+error.message);return}const num="KC-"+String(data.id).padStart(4,"0");lastReceipt={num,name,country,usd,rate,local,currency,method,date:new Date(data.created_at)};showReceipt()}
 function showReceipt(){const x=lastReceipt;if(!x)return;rNumber.textContent=x.num;rName.textContent=x.name;rCountry.textContent=x.country;rUsd.textContent="$"+x.usd.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})+" USD";rRate.textContent="1 USD = "+x.rate.toLocaleString("en-US")+" "+(x.currency==="VES"?"Bs":"COP");rLocal.textContent=x.local.toLocaleString("es-US",{maximumFractionDigits:2})+" "+(x.currency==="VES"?"Bs":"COP");rMethod.textContent=x.method;rDate.textContent=x.date.toLocaleString("es-US",{dateStyle:"medium",timeStyle:"short"});receiptCard.classList.add("show")}
-async function shareReceipt(){if(!lastReceipt)return;const x=lastReceipt,cur=x.currency==="VES"?"Bs":"COP";const txt=`KAPITALCOINS\n✓ OPERACIÓN COMPLETADA\n${x.num}\n\nCliente: ${x.name}\nPaís: ${x.country}\nMonto recibido: $${x.usd.toFixed(2)} USD\nTasa: 1 USD = ${x.rate.toLocaleString("en-US")} ${cur}\nMonto entregado: ${x.local.toLocaleString("es-US",{maximumFractionDigits:2})} ${cur}\nMétodo: ${x.method}\nFecha: ${x.date.toLocaleString("es-US")}\n\nKapitalcoins • Más que cambios, somos tu aliado.`;try{if(navigator.share)await navigator.share({title:"Recibo "+x.num,text:txt});else{await navigator.clipboard.writeText(txt);alert("Recibo copiado.")}}catch(e){}}
+function receiptImageBlob(x){return new Promise((resolve,reject)=>{try{
+ const c=document.createElement("canvas");c.width=1080;c.height=1500;const g=c.getContext("2d");
+ const gold="#f2c63e",gold2="#d99b12",white="#ffffff",muted="#b9b9b9",green="#48d273",bg="#070707";
+ g.fillStyle=bg;g.fillRect(0,0,c.width,c.height);
+ const grd=g.createLinearGradient(0,0,1080,0);grd.addColorStop(0,gold2);grd.addColorStop(1,"#ffdc59");
+ g.fillStyle=grd;g.fillRect(0,0,1080,18);
+ g.strokeStyle=gold2;g.lineWidth=3;g.strokeRect(45,45,990,1410);
+ g.textAlign="center";g.fillStyle=gold;g.font="900 62px -apple-system,BlinkMacSystemFont,Arial";g.fillText("KAPITALCOINS",540,145);
+ g.fillStyle=muted;g.font="28px -apple-system,BlinkMacSystemFont,Arial";g.fillText("COMPROBANTE DE OPERACIÓN",540,195);
+ g.fillStyle=gold;g.font="800 34px -apple-system,BlinkMacSystemFont,Arial";g.fillText(x.num,540,250);
+ g.strokeStyle="#5f4a12";g.lineWidth=2;g.beginPath();g.moveTo(105,285);g.lineTo(975,285);g.stroke();
+ g.fillStyle=green;g.font="900 36px -apple-system,BlinkMacSystemFont,Arial";g.fillText("✓ OPERACIÓN COMPLETADA",540,350);
+ const cur=x.currency==="VES"?"Bs":"COP";
+ const rows=[
+  ["Cliente",x.name],["País",x.country],
+  ["Monto recibido","$"+x.usd.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})+" USD"],
+  ["Tasa aplicada","1 USD = "+x.rate.toLocaleString("en-US")+" "+cur],
+  ["Monto entregado",x.local.toLocaleString("es-US",{maximumFractionDigits:2})+" "+cur],
+  ["Método de pago",x.method],
+  ["Fecha y hora",x.date.toLocaleString("es-US",{dateStyle:"medium",timeStyle:"short"})]
+ ];
+ let y=445;g.textAlign="left";
+ for(const [lab,val] of rows){
+   g.fillStyle=muted;g.font="30px -apple-system,BlinkMacSystemFont,Arial";g.fillText(lab,120,y);
+   g.textAlign="right";g.fillStyle=white;g.font="700 31px -apple-system,BlinkMacSystemFont,Arial";
+   let v=String(val); if(g.measureText(v).width>520){g.font="700 25px -apple-system,BlinkMacSystemFont,Arial"}
+   g.fillText(v,960,y);g.textAlign="left";
+   g.strokeStyle="#262626";g.beginPath();g.moveTo(120,y+35);g.lineTo(960,y+35);g.stroke();y+=115;
+ }
+ g.textAlign="center";g.fillStyle=gold;g.font="800 30px -apple-system,BlinkMacSystemFont,Arial";g.fillText("Rápido • Seguro • Confiable",540,1290);
+ g.fillStyle=muted;g.font="24px -apple-system,BlinkMacSystemFont,Arial";g.fillText("Kapitalcoins • Más que cambios, somos tu aliado.",540,1350);
+ g.fillStyle="#6f6f6f";g.font="21px -apple-system,BlinkMacSystemFont,Arial";g.fillText("Comprobante generado digitalmente",540,1400);
+ c.toBlob(b=>b?resolve(b):reject(new Error("No se pudo crear la imagen")),"image/png",1);
+}catch(e){reject(e)}})}
+async function shareReceipt(){if(!lastReceipt)return;try{
+ const blob=await receiptImageBlob(lastReceipt);
+ const file=new File([blob],"Kapitalcoins-"+lastReceipt.num+".png",{type:"image/png"});
+ if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:"Recibo "+lastReceipt.num,text:"Kapitalcoins • Operación completada"});return}
+ const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+ alert("Imagen del recibo creada.");
+}catch(e){console.error("Kapitalcoins receipt image:",e);alert("No se pudo crear la imagen del recibo.")}}
 function newReceipt(){lastReceipt=null;rcName.value="";rcUsd.value="";receiptCard.classList.remove("show");receiptCountryChanged();rcName.focus()}
 async function init(){upd();receiptCountryChanged();clock();setInterval(clock,1000);await registerVisit();const {data:{session}}=await db.auth.getSession();setAdmin(!!session);await loadRates();if(session)await loadVisitCount()}init();
 </script></body></html>
