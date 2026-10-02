@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Kapitalcoins",
+  "short_name": "Kapitalcoins",
+  "description": "Remesas, cambios y cripto",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#050505",
+  "icons": [
+    {
+      "src": "/icon.PNG",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
