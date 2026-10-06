@@ -162,7 +162,54 @@ async function selectChartPair(pair,btn){chartPair=pair;document.querySelectorAl
 async function selectChartPeriod(period,btn){chartPeriod=period;document.querySelectorAll(".chart-period").forEach(x=>x.classList.remove("active"));if(btn)btn.classList.add("active");const note=document.getElementById("chartHistoryNote");if(note)note.textContent="Historial real de tasas • "+(period==="24h"?"24 horas":period==="7d"?"7 días":"30 días");await loadRateHistory()}
 async function loadRateHistory(){if(!chartEnabled)return;try{const since=new Date(Date.now()-periodHours()*3600000).toISOString();const {data,error}=await db.from("rate_history").select("usd_ves,usd_cop,usdt_usd,created_at").gte("created_at",since).order("created_at",{ascending:true}).limit(1000);if(error)throw error;chartHistory=(data||[]).map(r=>({value:Number(r[historyKey()]),created_at:r.created_at})).filter(r=>isFinite(r.value)&&r.value>0);const current=chartRate();if(current>0&&(!chartHistory.length||Math.abs(chartHistory[chartHistory.length-1].value-current)>1e-9))chartHistory.push({value:current,created_at:new Date().toISOString()});updateChartChange();drawMarketChart()}catch(e){console.error("Kapitalcoins rate history:",e);chartHistory=[];updateChartChange();drawMarketChart()}}
 function updateChartChange(){const el=document.getElementById("chartChange");if(!el)return;const current=chartRate(),first=chartHistory.length?chartHistory[0].value:current;let pct=first?((current-first)/first)*100:0;if(!isFinite(pct))pct=0;el.classList.remove("up","down","flat");el.classList.add(pct>0?"up":pct<0?"down":"flat");el.textContent=(pct>0?"▲ +":pct<0?"▼ ":"• ")+pct.toFixed(2)+"%"}
-function buildHistoryCandles(base){let vals=chartHistory.map(x=>x.value).filter(v=>isFinite(v)&&v>0);if(!vals.length)vals=[base];const target=22;if(vals.length===1)return Array.from({length:target},()=>({open:vals[0],close:vals[0],hi:vals[0],lo:vals[0]}));let groups=[];for(let i=0;i<target;i++){const a=Math.floor(i*vals.length/target),b=Math.max(a+1,Math.floor((i+1)*vals.length/target));const slice=vals.slice(a,b);if(!slice.length)continue;groups.push({open:slice[0],close:slice[slice.length-1],hi:Math.max(...slice),lo:Math.min(...slice)})}return groups}
+function buildHistoryCandles(base){
+  let vals=chartHistory.map(x=>Number(x.value)).filter(v=>isFinite(v)&&v>0);
+  if(!vals.length)vals=[base];
+
+  const target=22;
+  const scale=chartPair==="USDT"?.0025:Math.max(base*.0018,chartPair==="COP"?4:.45);
+
+  // Si hay pocos registros reales, interpolamos SOLO la presentación visual
+  // entre esos puntos. Los extremos siguen siendo las tasas reales guardadas.
+  let path=[];
+  if(vals.length===1){
+    // Historial todavía plano: velas visibles alrededor de la tasa real,
+    // cerrando siempre exactamente en la tasa actual.
+    for(let i=0;i<=target;i++){
+      const wave=Math.sin(i*1.37)*scale*.32 + Math.sin(i*.53)*scale*.18;
+      path.push(vals[0]+wave);
+    }
+    path[path.length-1]=base;
+  }else{
+    for(let i=0;i<=target;i++){
+      const pos=i/target*(vals.length-1);
+      const a=Math.floor(pos), b=Math.min(vals.length-1,a+1), t=pos-a;
+      let v=vals[a]+(vals[b]-vals[a])*t;
+      // Microvariación determinista para que el cuerpo de la vela sea visible.
+      // No cambia los puntos reales ni la tasa mostrada.
+      if(i>0&&i<target)v+=Math.sin(i*1.71)*scale*.22;
+      path.push(v);
+    }
+    path[0]=vals[0];
+    path[path.length-1]=base;
+  }
+
+  const candles=[];
+  for(let i=0;i<target;i++){
+    const open=path[i], close=path[i+1];
+    const body=Math.abs(close-open);
+    const wick=Math.max(scale*.38,body*.28);
+    const upWick=wick*(.75+.25*((i%3)/2));
+    const dnWick=wick*(.72+.28*(((i+1)%4)/3));
+    candles.push({
+      open,
+      close,
+      hi:Math.max(open,close)+upWick,
+      lo:Math.max(.000001,Math.min(open,close)-dnWick)
+    });
+  }
+  return candles;
+}
 function drawMarketChart(){if(!chartEnabled)return;const c=document.getElementById("marketCanvas");if(!c)return;const rect=c.getBoundingClientRect();if(rect.width<10)return;const dpr=Math.min(window.devicePixelRatio||1,2);c.width=Math.round(rect.width*dpr);c.height=Math.round(rect.height*dpr);const g=c.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);const w=rect.width,h=rect.height;g.clearRect(0,0,w,h);const light=document.body.classList.contains("light-theme");g.strokeStyle=light?"#ddd5c2":"#283034";g.lineWidth=1;for(let i=1;i<5;i++){let y=h*i/5;g.beginPath();g.moveTo(0,y);g.lineTo(w,y);g.stroke()}for(let i=1;i<7;i++){let x=w*i/7;g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke()}const realBase=chartRate();const base=chartRateTransition?chartRateTransition.current:realBase;if(!isFinite(base)||base<=0)return;let candles=buildHistoryCandles(base);if(!candles.length)return;const typical=chartPair==="USDT"?.008:Math.max(base*.004,chartPair==="COP"?8:1);if(chartDirection&&chartPulse){const last=candles[candles.length-1],visual=base+chartDirection*typical*chartPulse;candles[candles.length-1]={open:last.open,close:visual,hi:Math.max(last.hi,visual,base),lo:Math.min(last.lo,visual,base)}}let min=Math.min(...candles.map(x=>x.lo),base),max=Math.max(...candles.map(x=>x.hi),base);if(max-min<typical*.8){min=base-typical;max=base+typical}const pad=(max-min)*.12;min-=pad;max+=pad;const y=v=>12+(max-v)/(max-min)*(h-24),cw=w/candles.length;candles.forEach((x,i)=>{const px=i*cw+cw/2,col=x.close>=x.open?"#18c96f":"#e64b55";g.strokeStyle=col;g.fillStyle=col;g.lineWidth=1.5;g.beginPath();g.moveTo(px,y(x.hi));g.lineTo(px,y(x.lo));g.stroke();const top=Math.min(y(x.open),y(x.close)),bh=Math.max(3,Math.abs(y(x.open)-y(x.close)));g.fillRect(px-cw*.22,top,cw*.44,bh)});const py=y(base);g.strokeStyle="#f2c63e";g.lineWidth=1.5;g.setLineDash([5,4]);g.beginPath();g.moveTo(0,py);g.lineTo(w,py);g.stroke();g.setLineDash([]);document.getElementById("chartCurrentPrice").textContent=formatChartRate(base);document.getElementById("chartPairLabel").textContent=chartPair==="VES"?"USD → VES":chartPair==="COP"?"USD → COP":"USDT → USD"}
 function animateTrade(type){if(chartAnim)cancelAnimationFrame(chartAnim);chartDirection=type==="buy"?1:-1;const flash=document.getElementById("chartFlash");flash.textContent=type==="buy"?"▲ COMPRA • movimiento visual":"▼ VENTA • movimiento visual";flash.style.background=type==="buy"?"#0c7049":"#8e242b";flash.classList.add("show");const start=performance.now(),duration=1350;function step(now){const t=Math.min(1,(now-start)/duration);chartPulse=Math.sin(Math.PI*t)*(.9+.1*Math.sin(t*Math.PI*3));drawMarketChart();if(t<1)chartAnim=requestAnimationFrame(step);else{chartPulse=0;chartDirection=0;drawMarketChart();setTimeout(()=>flash.classList.remove("show"),500)}}chartAnim=requestAnimationFrame(step)}
 function animateRateChange(oldRates,newRates){if(!chartEnabled||!oldRates||!newRates)return;const key=historyKey();const from=Number(oldRates[key]),to=Number(newRates[key]);if(!isFinite(from)||!isFinite(to)||from===to){drawMarketChart();return}if(chartAnim)cancelAnimationFrame(chartAnim);chartRateTransition={from,to,current:from};const flash=document.getElementById("chartFlash");const up=to>from;flash.textContent=(up?"▲ TASA SUBIENDO ":"▼ TASA BAJANDO ")+formatChartRate(from)+" → "+formatChartRate(to);flash.style.background=up?"#0c7049":"#8e242b";flash.classList.add("show");const change=document.getElementById("chartChange");if(change){change.style.transform="scale(1.08)";setTimeout(()=>change.style.transform="",700)}const start=performance.now(),duration=1800;function step(now){const t=Math.min(1,(now-start)/duration);const ease=1-Math.pow(1-t,3);chartRateTransition.current=from+(to-from)*ease;drawMarketChart();if(t<1){chartAnim=requestAnimationFrame(step)}else{chartRateTransition=null;drawMarketChart();setTimeout(()=>flash.classList.remove("show"),900);setTimeout(loadRateHistory,300)}}chartAnim=requestAnimationFrame(step)}
