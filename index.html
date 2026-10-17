@@ -293,10 +293,17 @@ function drawMarketChart(){
  const fmtValue=v=>Number(v).toLocaleString('en-US',{minimumFractionDigits:chartDecimals(),maximumFractionDigits:chartDecimals()});
  const now=Date.now(),start=now-periodHours()*3600000;
  const raw=chartHistory.map(r=>({v:Number(r.value),t:Date.parse(r.created_at)})).filter(r=>Number.isFinite(r.v)&&r.v>0&&Number.isFinite(r.t)&&r.t>=start&&r.t<=now+60000).sort((a,b)=>a.t-b.t);
- // Conservar todos los puntos reales, incluso si una tasa registrada es anómala.
+ // Control de calidad visual: no publicar picos sospechosos hasta revisarlos.
+ // Nunca se eliminan ni modifican filas en Supabase.
+ // USD/VES: rango temporal orientativo basado en tasa actual; no es un límite histórico oficial.
+ const lower=chartPair==='VES'?actual*.80:chartPair==='COP'?actual*.70:actual*.95;
+ const upper=chartPair==='VES'?actual*1.15:chartPair==='COP'?actual*1.30:actual*1.05;
+ const checked=raw.filter(p=>p.v>=lower&&p.v<=upper);
+ const ignored=raw.length-checked.length;
  const points=[];
- raw.forEach(p=>{if(points.length&&p.t===points[points.length-1].t){points[points.length-1]=p}else{points.push(p)}});
- if(!points.length||Math.abs(points[points.length-1].v-actual)>1e-8)points.push({t:now,v:actual});
+ checked.forEach(p=>{if(points.length&&p.t===points[points.length-1].t){points[points.length-1]=p}else{points.push(p)}});
+ // El precio publicado en rates es la referencia vigente y se muestra siempre.
+ if(!points.length||points[points.length-1].t<now-2000)points.push({t:now,v:actual});
  const values=points.map(p=>p.v),lo=Math.min(...values),hi=Math.max(...values),first=values[0];
  const pct=first?100*(actual-first)/first:0;
  document.getElementById('kcMarketBig').textContent=fmtValue(base);
@@ -308,12 +315,12 @@ function drawMarketChart(){
  document.getElementById('chartPairLabel').textContent=chartPair==='VES'?'USD → VES':chartPair==='COP'?'USD → COP':'USDT → USD';
  const footer=document.getElementById('kcGraphFooter');
  const differing=values.some(v=>Math.abs(v-first)>1e-8);
- if(footer)footer.textContent=!differing?'Sin variaciones registradas en este período. La línea es plana hasta que cambien las tasas.':'Movimiento basado en tasas guardadas en Kapitalcoins; no representa cotizaciones minuto a minuto.';
+ if(footer)footer.textContent=(ignored?('⚠️ '+ignored+' registro(s) fuera del rango visual; revisar historial en Supabase. '):'')+(!differing?'Sin variaciones verificables en este período.':'Gráfico basado en actualizaciones registradas; no en cotizaciones minuto a minuto.');
  // Escalas de precio (derecha) y tiempo (abajo), sin inventar máximos ni mínimos.
  const left=10,right=49,top=14,bottom=33,ww=Math.max(1,w-left-right),hh=Math.max(1,h-top-bottom);
  const spread=hi-lo;
  const pad=spread>0?spread*.12:Math.max(actual*.006,chartPair==='USDT'?.004:chartPair==='COP'?3:3);
- let min=lo-pad,max=hi+pad;if(max<=min)max=min+1;
+ let min=Math.max(0,lo-pad),max=hi+pad;if(max<=min)max=min+1;
  const xx=t=>left+ww*Math.max(0,Math.min(1,(t-start)/(now-start)));
  const yy=v=>top+(max-v)/(max-min)*hh;
  g.save();g.font='10px -apple-system,BlinkMacSystemFont,Arial,sans-serif';g.lineWidth=.7;
