@@ -285,16 +285,20 @@ function drawMarketChart(){
  const canvas=document.getElementById('marketCanvas');if(!canvas)return;
  const rect=canvas.getBoundingClientRect();if(rect.width<10)return;
  const dpr=Math.min(window.devicePixelRatio||1,2),w=rect.width,h=rect.height;
- canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);
+ if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr)}
  const g=canvas.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
  const light=document.body.classList.contains('light-theme');
- const actual=chartRate();if(!isFinite(actual)||actual<=0)return;
+ const actual=chartRate();if(!Number.isFinite(actual)||actual<=0)return;
  const base=chartRateTransition?chartRateTransition.current:actual;
- const history=chartHistory.map(r=>Number(r.value)).filter(v=>Number.isFinite(v)&&v>0);
- const values=history.length?history.slice():[actual];
- if(!history.length||Math.abs(values[values.length-1]-actual)>1e-9)values.push(actual);
- const lo=Math.min(...values),hi=Math.max(...values),first=values[0],pct=first?100*(actual-first)/first:0;
  const fmtValue=v=>Number(v).toLocaleString('en-US',{minimumFractionDigits:chartDecimals(),maximumFractionDigits:chartDecimals()});
+ const now=Date.now(),start=now-periodHours()*3600000;
+ const raw=chartHistory.map(r=>({v:Number(r.value),t:Date.parse(r.created_at)})).filter(r=>Number.isFinite(r.v)&&r.v>0&&Number.isFinite(r.t)&&r.t>=start&&r.t<=now+60000).sort((a,b)=>a.t-b.t);
+ // Conservar todos los puntos reales, incluso si una tasa registrada es anómala.
+ const points=[];
+ raw.forEach(p=>{if(points.length&&p.t===points[points.length-1].t){points[points.length-1]=p}else{points.push(p)}});
+ if(!points.length||Math.abs(points[points.length-1].v-actual)>1e-8)points.push({t:now,v:actual});
+ const values=points.map(p=>p.v),lo=Math.min(...values),hi=Math.max(...values),first=values[0];
+ const pct=first?100*(actual-first)/first:0;
  document.getElementById('kcMarketBig').textContent=fmtValue(base);
  document.getElementById('kcMarketPair').textContent=chartPair==='VES'?'USD / VES · tasa publicada':chartPair==='COP'?'USD / COP · tasa publicada':'USDT / USD · tasa publicada';
  const delta=document.getElementById('kcMarketDelta');
@@ -303,31 +307,44 @@ function drawMarketChart(){
  document.getElementById('chartCurrentPrice').textContent=fmtValue(base);
  document.getElementById('chartPairLabel').textContent=chartPair==='VES'?'USD → VES':chartPair==='COP'?'USD → COP':'USDT → USD';
  const footer=document.getElementById('kcGraphFooter');
- if(footer)footer.textContent=values.length<2||hi===lo?'Sin cambios de tasa registrados en este período. La línea se moverá cuando registres nuevas tasas.':'Línea basada en las tasas registradas; movimiento visual suave sin alterar los precios.';
- const left=13,right=17,top=24,bottom=24,ww=w-left-right,hh=h-top-bottom;
+ const differing=values.some(v=>Math.abs(v-first)>1e-8);
+ if(footer)footer.textContent=!differing?'Sin variaciones registradas en este período. La línea es plana hasta que cambien las tasas.':'Movimiento basado en tasas guardadas en Kapitalcoins; no representa cotizaciones minuto a minuto.';
+ // Escalas de precio (derecha) y tiempo (abajo), sin inventar máximos ni mínimos.
+ const left=10,right=49,top=14,bottom=33,ww=Math.max(1,w-left-right),hh=Math.max(1,h-top-bottom);
  const spread=hi-lo;
- // El gráfico usa los registros reales. 1050 puede ser una referencia superior
- // visual para USD/VES, pero NO se finge que sea un máximo observado.
- let padding=spread>0?spread*.18:Math.max(actual*.008,chartPair==='USDT'?.008:4);
- let min=lo-padding,max=hi+padding;
- if(chartPair==='VES'&&hi<=1050&&max>1050)max=1050;
- if(max<=min)max=min+1;
- const y=v=>top+(max-v)/(max-min)*hh;
- g.strokeStyle=light?'#ebedf0':'#34373a';g.lineWidth=1;
- for(let k=0;k<=4;k++){const py=top+hh*k/4;g.beginPath();g.moveTo(left,py);g.lineTo(w-right,py);g.stroke()}
- const x=i=>left+(values.length<2?ww:ww*i/(values.length-1));
- const pts=values.map((v,i)=>[x(i),y(v)]);
- if(pts.length>=2){
-  const grad=g.createLinearGradient(0,top,0,h);grad.addColorStop(0,'rgba(221,157,36,.22)');grad.addColorStop(1,'rgba(221,157,36,0)');
-  g.beginPath();g.moveTo(pts[0][0],h-bottom);g.lineTo(...pts[0]);pts.slice(1).forEach(p=>g.lineTo(...p));g.lineTo(pts[pts.length-1][0],h-bottom);g.closePath();g.fillStyle=grad;g.fill();
-  g.beginPath();g.moveTo(...pts[0]);pts.slice(1).forEach(p=>g.lineTo(...p));g.strokeStyle='#d99a25';g.lineWidth=3.2;g.lineJoin='round';g.lineCap='round';g.stroke();
+ const pad=spread>0?spread*.12:Math.max(actual*.006,chartPair==='USDT'?.004:chartPair==='COP'?3:3);
+ let min=lo-pad,max=hi+pad;if(max<=min)max=min+1;
+ const xx=t=>left+ww*Math.max(0,Math.min(1,(t-start)/(now-start)));
+ const yy=v=>top+(max-v)/(max-min)*hh;
+ g.save();g.font='10px -apple-system,BlinkMacSystemFont,Arial,sans-serif';g.lineWidth=.7;
+ g.textBaseline='middle';g.textAlign='left';
+ for(let i=0;i<=4;i++){
+  const py=top+i*hh/4,price=max-(max-min)*i/4;
+  g.strokeStyle=light?'#e5e8ec':'#36383c';g.setLineDash([3,5]);
+  g.beginPath();g.moveTo(left,py);g.lineTo(w-right+2,py);g.stroke();g.setLineDash([]);
+  g.fillStyle=light?'#8a8e94':'#b1b3bb';g.fillText(chartPair==='USDT'?price.toFixed(3):price.toLocaleString('en-US',{maximumFractionDigits:chartPair==='VES'?1:0}),w-right+7,py);
  }
- const lastX=w-right,lastY=y(base);
- g.strokeStyle=light?'#e7c994':'#6e562c';g.setLineDash([5,6]);g.beginPath();g.moveTo(left,lastY);g.lineTo(lastX,lastY);g.stroke();g.setLineDash([]);
- // Solo pulsa el marcador: no se inventan cotizaciones ni fluctuaciones.
+ g.textBaseline='alphabetic';g.textAlign='center';
+ for(let i=0;i<=4;i++){
+  const t=start+(now-start)*i/4,px=xx(t),d=new Date(t);
+  let label=chartPeriod==='24h'?d.toLocaleTimeString('es-US',{hour:'2-digit',minute:'2-digit',hour12:false}):d.toLocaleDateString('es-US',{day:'2-digit',month:'short'});
+  g.fillStyle=light?'#8a8e94':'#b1b3bb';g.fillText(label,px,h-9);
+ }
+ const coords=points.map(p=>[xx(p.t),yy(p.v)]);
+ // Sólo hay línea cuando hay dos valores distintos; nada de picos inventados.
+ if(coords.length>1){
+  const grad=g.createLinearGradient(0,top,0,h-bottom);grad.addColorStop(0,'rgba(225,157,36,.15)');grad.addColorStop(1,'rgba(225,157,36,0)');
+  g.beginPath();g.moveTo(coords[0][0],h-bottom);g.lineTo(...coords[0]);coords.slice(1).forEach(p=>g.lineTo(...p));g.lineTo(coords[coords.length-1][0],h-bottom);g.closePath();g.fillStyle=grad;g.fill();
+  g.beginPath();g.moveTo(...coords[0]);coords.slice(1).forEach(p=>g.lineTo(...p));g.strokeStyle='#dfa026';g.lineWidth=1.65;g.lineJoin='round';g.lineCap='round';g.stroke();
+ }else{
+  const py=yy(actual);g.beginPath();g.moveTo(left,py);g.lineTo(w-right,py);g.strokeStyle='#dfa026';g.lineWidth=1.65;g.stroke();
+ }
+ const lastX=xx(now),lastY=yy(base);
+ g.strokeStyle=light?'#e8c994':'#665333';g.lineWidth=.8;g.setLineDash([3,5]);g.beginPath();g.moveTo(left,lastY);g.lineTo(lastX,lastY);g.stroke();g.setLineDash([]);
  const pulse=.5+.5*Math.sin(kcChartVisualPhase);
- g.beginPath();g.arc(lastX,lastY,10+pulse*6,0,Math.PI*2);g.fillStyle=light?'rgba(220,157,35,.09)':'rgba(220,157,35,.14)';g.fill();
- g.beginPath();g.arc(lastX,lastY,6.8,0,Math.PI*2);g.fillStyle='#dda02b';g.fill();g.lineWidth=3;g.strokeStyle=light?'white':'#161719';g.stroke();
+ g.beginPath();g.arc(lastX,lastY,6+pulse*2,0,Math.PI*2);g.fillStyle='rgba(220,157,35,.09)';g.fill();
+ g.beginPath();g.arc(lastX,lastY,3.6,0,Math.PI*2);g.fillStyle='#dda02b';g.fill();g.lineWidth=1.4;g.strokeStyle=light?'#fff':'#161719';g.stroke();
+ g.restore();
 }
 function animateTrade(type){if(chartAnim)cancelAnimationFrame(chartAnim);chartDirection=0;const flash=document.getElementById("chartFlash");flash.textContent=type==="buy"?"▲ COMPRA • movimiento visual":"▼ VENTA • movimiento visual";flash.style.background=type==="buy"?"#0c7049":"#8e242b";flash.classList.add("show");const start=performance.now(),duration=1350;function step(now){const t=Math.min(1,(now-start)/duration);chartPulse=Math.sin(Math.PI*t)*(.9+.1*Math.sin(t*Math.PI*3));drawMarketChart();if(t<1)chartAnim=requestAnimationFrame(step);else{chartPulse=0;chartDirection=0;drawMarketChart();setTimeout(()=>flash.classList.remove("show"),500)}}chartAnim=requestAnimationFrame(step)}
 function animateRateChange(oldRates,newRates){if(!chartEnabled||!oldRates||!newRates)return;const key=historyKey();const from=Number(oldRates[key]),to=Number(newRates[key]);if(!isFinite(from)||!isFinite(to)||from===to){drawMarketChart();return}if(chartAnim)cancelAnimationFrame(chartAnim);chartRateTransition={from,to,current:from};const flash=document.getElementById("chartFlash");const up=to>from;flash.textContent=(up?"▲ TASA SUBIENDO ":"▼ TASA BAJANDO ")+formatChartRate(from)+" → "+formatChartRate(to);flash.style.background=up?"#0c7049":"#8e242b";flash.classList.add("show");const change=document.getElementById("chartChange");if(change){change.style.transform="scale(1.08)";setTimeout(()=>change.style.transform="",700)}const start=performance.now(),duration=1800;function step(now){const t=Math.min(1,(now-start)/duration);const ease=1-Math.pow(1-t,3);chartRateTransition.current=from+(to-from)*ease;drawMarketChart();if(t<1){chartAnim=requestAnimationFrame(step)}else{chartRateTransition=null;drawMarketChart();setTimeout(()=>flash.classList.remove("show"),900);setTimeout(loadRateHistory,300)}}chartAnim=requestAnimationFrame(step)}
