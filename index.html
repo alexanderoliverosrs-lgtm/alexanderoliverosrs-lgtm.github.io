@@ -687,11 +687,11 @@ async function kcarProLoad(){
   kcarProEl('kcarProMaxMove').value=Number(data.max_change_percent||2);
   const ready=!!data.verified_feed_enabled;
   const on=!!data.auto_publish_enabled;
-  kcarProEl('kcarProBadge').textContent=on?(ready?'ON · VALIDACIÓN SERVIDOR':'ON · SIN FUENTE VERIFICADA'):'OFF · MANUAL';
+  kcarProEl('kcarProBadge').textContent=on?(ready?'ON · VALIDACIÓN SERVIDOR':'ON · PUBLICACIÓN BLOQUEADA'):'OFF · MANUAL';
   kcarProStatus(ready?(on?'Configuración habilitada. Revisa el historial de publicaciones del servidor.':'Modo manual. Sin publicación automática.'):'⛔ Falta una fuente verificada para Banco de Venezuela. Aunque actives ON, el servidor debe impedir publicaciones automáticas. '+(data.last_publish_status||''));
   kcarProLoaded=true;kcarProSetControls(true);
-  // Cotizave no verifica precio ejecutable para Banco de Venezuela; ON permanece bloqueado.
-  kcarProEl('kcarProToggle').disabled=!ready;
+  // El administrador puede guardar ON/OFF. La publicación se valida exclusivamente en el servidor.
+  kcarProEl('kcarProToggle').disabled=false;
  }catch(e){
   kcarProEl('kcarProBadge').textContent='NO DISPONIBLE';
   kcarProStatus('No se pudo cargar la configuración de Supabase. Ejecuta el archivo SQL de instalación y revisa los permisos de administrador. Detalle: '+(e?.message||'error'));
@@ -705,14 +705,13 @@ async function kcarProSaveSettings(){
  if(!Number.isFinite(margin)||margin<0.1||margin>30||!Number.isFinite(maxChange)||maxChange<0.1||maxChange>5){kcarProStatus('Margen permitido: 0,1–30%. Cambio máximo: 0,1–5%.');return;}
  const {data:{session}}=await db.auth.getSession();
  if(!session){kcarProStatus('Sesión expirada.');return;}
- if(enabled && kcarProEl('kcarProToggle').disabled){kcarProStatus('Publicación bloqueada: falta una fuente ejecutable verificada.');return;}
  if(enabled && !confirm('¿Guardar el modo ON? El servidor DEBE bloquear publicaciones hasta disponer de una fuente ejecutable verificada para Banco de Venezuela. Esta pantalla no publica por sí sola.'))return;
  kcarProSaving=true;kcarProSetControls(false);kcarProStatus('Guardando configuración en Supabase…');
  try{
   const {data,error}=await db.from(KC_PRO_TABLE).update({auto_publish_enabled:enabled,margin_percent:margin,max_change_percent:maxChange,updated_at:new Date().toISOString()}).eq('id',1).select('id').single();
   if(error)throw error;if(!data)throw new Error('No se confirmó escritura en id=1');
   await kcarProLoad();
- }catch(e){kcarProStatus('⛔ No se guardó: '+(e?.message||'Error de permisos'));kcarProSetControls(true);kcarProEl('kcarProToggle').disabled=true;}
+ }catch(e){kcarProStatus('⛔ No se guardó: '+(e?.message||'Error de permisos'));kcarProSetControls(true);}
  finally{kcarProSaving=false;}
 }
 async function init(){initTheme();initSplash();initMusic();initPushNotifications();upd();receiptCountryChanged();clock();setInterval(clock,1000);await registerVisit();const {data:{session}}=await db.auth.getSession();setAdmin(!!session);await loadRates();await loadCommissionPercent();await loadChartSetting();await loadReviewsSetting();await loadReferralsSetting();await loadApprovedReviews();if(session){await loadVisitCount();await loadPendingReviews()}}init();
