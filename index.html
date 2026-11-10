@@ -150,7 +150,7 @@ body:not(.light-theme) .kcar-pro-grid input{background:#171717;color:#fff}
 <section class="kc-refpromo" id="kcReferralPromo"><h2>🎁 Recomienda y gana</h2><p>Si tienes un código de referido, compártelo con un amigo nuevo. Cuando complete su primer cambio de $100 o más, recibe:</p><strong>$20 de crédito</strong><p>Para tu próximo envío, una vez validada la operación. Solicita tu código al equipo.</p><a href="#kcContact">💬 Solicitar mi código</a></section><section class="box" id="kcReviews"><h2>⭐ Reseñas de clientes</h2><p class="desc">¿Ya realizaste una operación? Cuéntanos tu experiencia.</p><div class="reviewform"><input id="reviewName" maxlength="40" placeholder="Tu nombre o iniciales"><select id="reviewRating"><option value="5">⭐⭐⭐⭐⭐ Excelente</option><option value="4">⭐⭐⭐⭐ Muy buena</option><option value="3">⭐⭐⭐ Buena</option><option value="2">⭐⭐ Regular</option><option value="1">⭐ Mala</option></select><textarea id="reviewComment" maxlength="220" placeholder="Escribe tu reseña..."></textarea><button onclick="submitReview()">⭐ Enviar reseña</button><div class="adminmsg" id="reviewMsg"></div></div></section><section class="kc-services" id="kcServices"><h2>⚡ Accesos y atención</h2><div class="kc-service-grid"><a href="#kcAlerts" onclick="document.getElementById('kcAlerts').open=true" class="kc-service-link"><span>🔔</span>Avisos</a><a href="#kcContactDetails" onclick="document.getElementById('kcContactDetails').open=true" class="kc-service-link"><span>💬</span>Contacto</a><button type="button" class="kc-service-link" onclick="shareApp()"><span>↗</span>Compartir</button></div><details class="kc-service-details" id="kcAlerts"><summary>🔔 Notificaciones de tasas <span>Configurar</span></summary><section class="notification-box"><h2>🔔 Notificaciones de tasas</h2><p class="desc">Recibe un aviso cuando Kapitalcoins actualice las tasas.</p><button id="pushBtn" class="notification-btn" onclick="enablePushNotifications()">🔔 Activar notificaciones</button><div id="pushStatus" class="notification-status">Comprobando disponibilidad…</div></section></details><details class="kc-service-details" id="kcContactDetails"><summary>💬 Contacto y confianza <span>Ver opciones</span></summary><div class="kc-service-contact"><div class="trust"><div>🛡️<br>Rápido</div><div>🔒<br>Seguro</div><div>🤝<br>Confiable</div></div><a class="wa" id="kcContact" onclick="recordWhatsAppClick()" href="https://wa.me/19315471015?text=Hola%20Kapitalcoins%2C%20quiero%20informaci%C3%B3n%20sobre%20una%20operaci%C3%B3n." target="_blank"><div class="waicon">☏</div><div><b>Hablar por WhatsApp</b><small>Atención directa • Disponible 24/7</small></div><div style="margin-left:auto;font-size:28px">›</div></a><button class="share" onclick="shareApp()">↗ Compartir Kapitalcoins</button></div></details></section><section class="box adminonly" id="receiptPanel"><h2>🧾 Crear recibo</h2><p class="desc">Genera y guarda un comprobante de operación completada.</p><div class="receiptform"><input id="rcName" placeholder="Nombre del cliente"><div class="receipt2"><select id="rcCountry" onchange="receiptCountryChanged()"><option value="VE">🇻🇪 Venezuela</option><option value="CO">🇨🇴 Colombia</option></select><select id="rcMethod"><option>Banco de Venezuela</option><option>Pago Móvil</option><option>Banesco</option><option>Provincial</option><option>Mercantil</option><option>Nequi</option><option>Davivienda</option><option>Bancolombia</option><option>Zelle</option><option>USDT</option></select></div><div class="receipt2"><input id="rcUsd" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Monto enviado USD (sin comisión)" oninput="updateReceiptTotal()"><input id="rcRate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Tasa aplicada" oninput="updateReceiptTotal()"></div><input id="rcLocal" readonly placeholder="Monto entregado"><div class="kc-commission-card"><div class="kc-commission-line"><span>Comisión (<span data-kc-commission-pct>3%</span>)</span><strong id="rcCommissionPreview">$0.00</strong></div><div class="kc-commission-line kc-commission-total"><span>Total cobrado al cliente</span><strong id="rcTotalPayPreview">$0.00</strong></div></div><div class="kcf-two"><div><label for="rcSaleRate">Tasa venta USDT</label><input id="rcSaleRate" type="number" min="0" step="any" inputmode="decimal" placeholder="Ej. 1005" oninput="kcfReceiptPreview()"></div><div><label for="rcFees">Gastos USD</label><input id="rcFees" type="number" min="0" step="0.01" inputmode="decimal" value="0" oninput="kcfReceiptPreview()"></div></div><div id="rcProfitPreview" class="kcf-preview">Para calcular la ganancia, escribe la tasa de venta USDT.</div><label class="kcf-check"><input id="rcTrackFinance" type="checkbox" checked> Registrar esta operación completada en el control financiero</label><button onclick="createReceipt()">✅ Finalizar y crear recibo</button></div><div class="receiptcard" id="receiptCard"><div class="receipt-head"><b>KAPITALCOINS</b><div>COMPROBANTE DE OPERACIÓN</div><div class="receipt-number" id="rNumber"></div></div><div class="receipt-status">✓ OPERACIÓN COMPLETADA</div><div class="receipt-row"><span>Cliente</span><strong id="rName"></strong></div><div class="receipt-row"><span>País</span><strong id="rCountry"></strong></div><div class="receipt-row"><span>Monto enviado (USD)</span><strong id="rUsd"></strong></div><div class="receipt-row"><span>Comisión (<span data-kc-commission-pct>3%</span>)</span><strong id="rCommission"></strong></div><div class="receipt-row"><span>Total pagado (USD)</span><strong id="rTotalPaid"></strong></div><div class="receipt-row"><span>Tasa aplicada</span><strong id="rRate"></strong></div><div class="receipt-row"><span>Monto entregado</span><strong id="rLocal"></strong></div><div class="receipt-row"><span>Método de pago</span><strong id="rMethod"></strong></div><div class="receipt-row"><span>Fecha y hora</span><strong id="rDate"></strong></div><div class="receipt-note">Kapitalcoins • Más que cambios, somos tu aliado.</div><div class="receipt-actions"><button onclick="shareReceipt()">↗ Compartir</button><button onclick="newReceipt()">＋ Nuevo recibo</button></div></div></section><section class="box adminonly kcar-panel" id="kcAutoRatePanel"><h2>🤖 Kapitalcoins AutoRate · Venezuela</h2><p class="desc">Referencia Binance P2P por Cotizave. Consulta en la nube y controles de AutoRate PRO; la publicación sin aprobación requiere una fuente ejecutable verificada para Banco de Venezuela y validación en el servidor.</p><div class="kcar-pro" id="kcarProPanel">
  <div class="kcar-pro-head"><b>⚡ AutoRate PRO · Publicación</b><span class="kcar-pro-badge" id="kcarProBadge">SIN CONFIGURAR</span></div>
  <div class="kcar-pro-control"><div><strong>Publicar tasas automáticamente</strong><small>Interruptor privado · estado guardado en Supabase</small></div><label class="kcar-pro-switch"><input id="kcarProToggle" type="checkbox" disabled aria-label="Publicación automática de Venezuela"><span></span></label></div>
- <div class="kcar-pro-grid"><div><label for="kcarProMargin">Margen bruto objetivo (%)</label><input id="kcarProMargin" type="number" min="0.1" max="30" step="0.1" value="5" disabled></div><div><label for="kcarProMaxMove">Variación máxima por actualización (%)</label><input id="kcarProMaxMove" type="number" min="0.1" max="5" step="0.1" value="2" disabled></div></div>
+ <div class="kcar-pro-grid"><div><label for="kcarProMargin">Descuento sobre Cotizave (%)</label><input id="kcarProMargin" type="number" min="0.1" max="30" step="0.1" value="6" disabled></div><div><label for="kcarProMaxMove">Variación máxima por actualización (%)</label><input id="kcarProMaxMove" type="number" min="0.1" max="5" step="0.1" value="2" disabled></div></div>
  <button type="button" class="kcar-pro-save" id="kcarProSave" onclick="kcarProSaveSettings()" disabled>💾 Guardar configuración AutoRate PRO</button>
  <div class="kcar-pro-message" id="kcarProMessage" role="status">Comprobando configuración segura…</div>
  <p class="kcar-pro-alert">🛡️ El modo ON es una solicitud de publicación, no una garantía de ejecución. El servidor debe verificar precio de venta USDT/VES ejecutable con Banco de Venezuela, vigencia, liquidez y límites antes de modificar las tasas públicas. Cotizave no proporciona esa verificación bancaria. Sin fuente validada, la publicación permanece bloqueada. Colombia no se modifica.</p>
@@ -697,22 +697,102 @@ async function kcarProLoad(){
   kcarProStatus('No se pudo cargar la configuración de Supabase. Ejecuta el archivo SQL de instalación y revisa los permisos de administrador. Detalle: '+(e?.message||'error'));
  }
 }
+/* Comprobar contra Supabase si la escritura quedo guardada aun cuando
+   Safari perdio la respuesta de red. No cambia el permiso de publicacion. */
+function kcarProSettingsMatch(row, desired){
+ return !!row &&
+  row.auto_publish_enabled===desired.auto_publish_enabled &&
+  Math.abs(Number(row.margin_percent)-desired.margin_percent)<0.00001 &&
+  Math.abs(Number(row.max_change_percent)-desired.max_change_percent)<0.00001;
+}
+async function kcarProReadSaved(){
+ const {data,error}=await db.from(KC_PRO_TABLE)
+  .select('id,auto_publish_enabled,margin_percent,max_change_percent,verified_feed_enabled')
+  .eq('id',1).single();
+ if(error)throw error;
+ return data;
+}
 async function kcarProSaveSettings(){
  if(kcarProSaving||!kcarProLoaded||!document.body.classList.contains('admin'))return;
  const margin=Number(kcarProEl('kcarProMargin').value);
  const maxChange=Number(kcarProEl('kcarProMaxMove').value);
  const enabled=kcarProEl('kcarProToggle').checked;
- if(!Number.isFinite(margin)||margin<0.1||margin>30||!Number.isFinite(maxChange)||maxChange<0.1||maxChange>5){kcarProStatus('Margen permitido: 0,1–30%. Cambio máximo: 0,1–5%.');return;}
- const {data:{session}}=await db.auth.getSession();
- if(!session){kcarProStatus('Sesión expirada.');return;}
- if(enabled && !confirm('¿Guardar el modo ON? El servidor DEBE bloquear publicaciones hasta disponer de una fuente ejecutable verificada para Banco de Venezuela. Esta pantalla no publica por sí sola.'))return;
- kcarProSaving=true;kcarProSetControls(false);kcarProStatus('Guardando configuración en Supabase…');
+ if(!Number.isFinite(margin)||margin<0.1||margin>30||!Number.isFinite(maxChange)||maxChange<0.1||maxChange>5){
+  kcarProStatus('Descuento permitido: 0,1–30%. Variación máxima: 0,1–5%.');return;
+ }
+ const {data:{session},error:sessionError}=await db.auth.getSession();
+ if(sessionError||!session){kcarProStatus('Sesión expirada. Entra nuevamente como administrador.');return;}
+ if(enabled && !confirm('¿Guardar el modo ON? Solo el servidor puede publicar y la fuente debe seguir verificada. Esta pantalla no publica tasas.'))return;
+ const desired={auto_publish_enabled:enabled,margin_percent:margin,max_change_percent:maxChange};
+ const button=kcarProEl('kcarProSave');
+ kcarProSaving=true;
+ kcarProSetControls(false);
+ kcarProStatus('Guardando y verificando configuración en Supabase…');
+ let saveIssue=null;
+ let saved=null;
  try{
-  const {data,error}=await db.from(KC_PRO_TABLE).update({auto_publish_enabled:enabled,margin_percent:margin,max_change_percent:maxChange,updated_at:new Date().toISOString()}).eq('id',1).select('id').single();
-  if(error)throw error;if(!data)throw new Error('No se confirmó escritura en id=1');
-  await kcarProLoad();
- }catch(e){kcarProStatus('⛔ No se guardó: '+(e?.message||'Error de permisos'));kcarProSetControls(true);}
- finally{kcarProSaving=false;}
+  /* Primero intentar la escritura normal con la sesión del administrador.
+     Nunca se modifica verified_feed_enabled ni la tabla rates. */
+  try{
+   const {data,error}=await db.from(KC_PRO_TABLE)
+    .update({...desired,updated_at:new Date().toISOString()})
+    .eq('id',1).select('id,auto_publish_enabled,margin_percent,max_change_percent').single();
+   if(error)throw error;
+   if(!data)throw new Error('Supabase no confirmó la escritura en id=1');
+   saved=data;
+  }catch(err){saveIssue=err;}
+
+  /* Si Safari devolvió Load failed, comprobar si se guardó igualmente.
+     Esto evita decir falsamente "No se guardó" por perder la respuesta. */
+  if(!kcarProSettingsMatch(saved,desired)){
+   kcarProStatus('Verificando el resultado del guardado…');
+   try{saved=await kcarProReadSaved();}catch(e){
+    if(!saveIssue)saveIssue=e;
+   }
+  }
+
+  /* Un solo reintento cuando la escritura no está confirmada. */
+  if(!kcarProSettingsMatch(saved,desired)){
+   kcarProStatus('Reintentando conexión segura una vez…');
+   await new Promise(resolve=>setTimeout(resolve,650));
+   try{
+    const {data,error}=await db.from(KC_PRO_TABLE)
+     .update({...desired,updated_at:new Date().toISOString()})
+     .eq('id',1).select('id,auto_publish_enabled,margin_percent,max_change_percent').single();
+    if(error)throw error;
+    saved=data;
+   }catch(e){saveIssue=e;}
+   if(!kcarProSettingsMatch(saved,desired)){
+    try{saved=await kcarProReadSaved();}catch(e){if(!saveIssue)saveIssue=e;}
+   }
+  }
+
+  if(kcarProSettingsMatch(saved,desired)){
+   const check=await kcarProReadSaved().catch(()=>null);
+   if(check && kcarProSettingsMatch(check,desired)){
+    kcarProStatus('✅ Configuración guardada y verificada en Supabase. Publicación '+(check.verified_feed_enabled?'sujeta a controles del servidor.':'bloqueada: fuente no verificada.'));
+   }else{
+    kcarProStatus('✅ Supabase confirmó el guardado. No fue posible completar una segunda lectura de verificación.');
+   }
+   kcarProEl('kcarProBadge').textContent=enabled?'ON · '+(check?.verified_feed_enabled?'VALIDACIÓN SERVIDOR':'PUBLICACIÓN BLOQUEADA'):'OFF · MANUAL';
+   kcarProLoaded=true;
+   return;
+  }
+
+  /* No asumir ni éxito ni fracaso ante una pérdida de conexión. */
+  const detail=String(saveIssue?.message||'Respuesta no disponible');
+  if(/load failed|failed to fetch|network|timeout/i.test(detail)){
+   kcarProStatus('⚠️ Safari perdió la conexión con Supabase. No podemos confirmar si se guardó. Revisa la conexión y vuelve a abrir el panel de administrador para recargar la configuración; no cambies la fuente verificada.');
+  }else{
+   kcarProStatus('⛔ Supabase no confirmó el guardado: '+detail);
+  }
+ }catch(e){
+  kcarProStatus('⚠️ No se pudo completar la verificación: '+(e?.message||'error de red'));
+ }finally{
+  kcarProSaving=false;
+  kcarProSetControls(true);
+  if(button)button.disabled=!kcarProLoaded;
+ }
 }
 async function init(){initTheme();initSplash();initMusic();initPushNotifications();upd();receiptCountryChanged();clock();setInterval(clock,1000);await registerVisit();const {data:{session}}=await db.auth.getSession();setAdmin(!!session);await loadRates();await loadCommissionPercent();await loadChartSetting();await loadReviewsSetting();await loadReferralsSetting();await loadApprovedReviews();if(session){await loadVisitCount();await loadPendingReviews()}}init();
 </script></body></html>
