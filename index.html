@@ -288,7 +288,26 @@ function toggleAdmin(){if(!document.body.classList.contains("admin"))adminLogin.
 document.getElementById("secretAdminLogo").addEventListener("click",secretAdminTap);
 async function loginAdmin(){adminmsg.textContent="Verificando…";const {error}=await db.auth.signInWithPassword({email:adminEmail.value.trim(),password:adminPassword.value});if(error){adminmsg.textContent="Correo o contraseña incorrectos.";return}adminmsg.textContent="";adminLogin.classList.remove("show");setAdmin(true)}
 async function logoutAdmin(){await db.auth.signOut();setAdmin(false)}
-function setAdmin(on){document.body.classList.toggle("admin",on);[ves,cop,usdt].forEach(x=>x.readOnly=!on);if(on){loadCommissionPercent();loadVisitCount();loadPushSubscriberCount();loadPendingReviews();loadReviewsSetting();loadReferralsSetting();loadChartSetting();refLoad();kcfLoad()}}
+function setAdmin(on){
+ document.body.classList.toggle("admin",on);
+ [ves,cop,usdt].forEach(x=>x.readOnly=!on);
+ if(on){
+  loadCommissionPercent();loadVisitCount();loadPushSubscriberCount();loadPendingReviews();
+  loadReviewsSetting();loadReferralsSetting();loadChartSetting();refLoad();kcfLoad();
+  // AutoRate PRO debe consultar ajustes al restaurar o iniciar la sesión del administrador.
+  // No bloquear los otros módulos durante la consulta.
+  void kcarProLoad().catch(e=>{
+   console.error('Kapitalcoins AutoRate PRO:',e);
+   kcarProEl('kcarProBadge').textContent='ERROR DE CONEXIÓN';
+   kcarProStatus('No se pudo iniciar AutoRate PRO: '+(e?.message||'Error desconocido'));
+  });
+ }else{
+  kcarProLoaded=false;
+  kcarProSetControls(false);
+  const badge=kcarProEl('kcarProBadge');if(badge)badge.textContent='SIN SESIÓN';
+  kcarProStatus('Inicia sesión como administrador para configurar AutoRate PRO.');
+ }
+}
 async function saveRates(){const {data:{session}}=await db.auth.getSession();if(!session){alert("La sesión de administrador expiró. Inicia sesión nuevamente.");setAdmin(false);return}let oldRates=null;try{const {data:current,error:readError}=await db.from("rates").select("usd_ves,usd_cop,usdt_usd").eq("id",1).single();if(readError)throw readError;oldRates={usd_ves:Number(current.usd_ves),usd_cop:Number(current.usd_cop),usdt_usd:Number(current.usdt_usd)}}catch(e){console.error("No se pudieron leer las tasas anteriores:",e)}const payload={usd_ves:Number(String(ves.value).replace(/,/g,'')),usd_cop:Number(String(cop.value).replace(/,/g,'')),usdt_usd:Number(String(usdt.value).replace(/,/g,'')),updated_at:new Date().toISOString()};// Validación previa: evita guardar cifras mal escritas como 9.985 en vez de 985.
 if(Object.entries(payload).some(([key,value])=>key!=="updated_at"&&(!Number.isFinite(value)||value<=0))){alert("Revisa las tasas: todos los valores deben ser números mayores que cero.");return}
 if(!oldRates){alert("No pudimos verificar las tasas anteriores. Por seguridad no se guardó ningún cambio. Intenta nuevamente.");return}
@@ -654,13 +673,15 @@ async function kcarProLoad(){
  if(!document.body.classList.contains('admin'))return;
  kcarProLoaded=false;kcarProSetControls(false);
  kcarProStatus('Consultando configuración protegida…');
- const {data:{session}}=await db.auth.getSession();
- if(!session){kcarProStatus('Inicia sesión como administrador.');return;}
  try{
+  const {data:{session},error:authError}=await db.auth.getSession();
+  if(authError)throw authError;
+  if(!session){kcarProEl('kcarProBadge').textContent='SIN SESIÓN';kcarProStatus('Inicia sesión como administrador.');return;}
   const {data,error}=await db.from(KC_PRO_TABLE)
    .select('auto_publish_enabled,margin_percent,max_change_percent,verified_feed_enabled,last_publish_status,updated_at')
    .eq('id',1).single();
   if(error)throw error;
+  if(!data)throw new Error('No se encontró configuración para id=1');
   kcarProEl('kcarProToggle').checked=!!data.auto_publish_enabled;
   kcarProEl('kcarProMargin').value=Number(data.margin_percent||5);
   kcarProEl('kcarProMaxMove').value=Number(data.max_change_percent||2);
@@ -669,6 +690,8 @@ async function kcarProLoad(){
   kcarProEl('kcarProBadge').textContent=on?(ready?'ON · VALIDACIÓN SERVIDOR':'ON · SIN FUENTE VERIFICADA'):'OFF · MANUAL';
   kcarProStatus(ready?(on?'Configuración habilitada. Revisa el historial de publicaciones del servidor.':'Modo manual. Sin publicación automática.'):'⛔ Falta una fuente verificada para Banco de Venezuela. Aunque actives ON, el servidor debe impedir publicaciones automáticas. '+(data.last_publish_status||''));
   kcarProLoaded=true;kcarProSetControls(true);
+  // Cotizave no verifica precio ejecutable para Banco de Venezuela; ON permanece bloqueado.
+  kcarProEl('kcarProToggle').disabled=!ready;
  }catch(e){
   kcarProEl('kcarProBadge').textContent='NO DISPONIBLE';
   kcarProStatus('No se pudo cargar la configuración de Supabase. Ejecuta el archivo SQL de instalación y revisa los permisos de administrador. Detalle: '+(e?.message||'error'));
@@ -682,13 +705,14 @@ async function kcarProSaveSettings(){
  if(!Number.isFinite(margin)||margin<0.1||margin>30||!Number.isFinite(maxChange)||maxChange<0.1||maxChange>5){kcarProStatus('Margen permitido: 0,1–30%. Cambio máximo: 0,1–5%.');return;}
  const {data:{session}}=await db.auth.getSession();
  if(!session){kcarProStatus('Sesión expirada.');return;}
+ if(enabled && kcarProEl('kcarProToggle').disabled){kcarProStatus('Publicación bloqueada: falta una fuente ejecutable verificada.');return;}
  if(enabled && !confirm('¿Guardar el modo ON? El servidor DEBE bloquear publicaciones hasta disponer de una fuente ejecutable verificada para Banco de Venezuela. Esta pantalla no publica por sí sola.'))return;
  kcarProSaving=true;kcarProSetControls(false);kcarProStatus('Guardando configuración en Supabase…');
  try{
   const {data,error}=await db.from(KC_PRO_TABLE).update({auto_publish_enabled:enabled,margin_percent:margin,max_change_percent:maxChange,updated_at:new Date().toISOString()}).eq('id',1).select('id').single();
   if(error)throw error;if(!data)throw new Error('No se confirmó escritura en id=1');
   await kcarProLoad();
- }catch(e){kcarProStatus('⛔ No se guardó: '+(e?.message||'Error de permisos'));kcarProSetControls(true);}
+ }catch(e){kcarProStatus('⛔ No se guardó: '+(e?.message||'Error de permisos'));kcarProSetControls(true);kcarProEl('kcarProToggle').disabled=true;}
  finally{kcarProSaving=false;}
 }
 async function init(){initTheme();initSplash();initMusic();initPushNotifications();upd();receiptCountryChanged();clock();setInterval(clock,1000);await registerVisit();const {data:{session}}=await db.auth.getSession();setAdmin(!!session);await loadRates();await loadCommissionPercent();await loadChartSetting();await loadReviewsSetting();await loadReferralsSetting();await loadApprovedReviews();if(session){await loadVisitCount();await loadPendingReviews()}}init();
