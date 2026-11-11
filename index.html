@@ -151,8 +151,10 @@ body:not(.light-theme) .kcar-pro-grid input{background:#171717;color:#fff}
  <div class="kcar-pro-head"><b>🤖 El Botsito · Publicación</b><span class="kcar-pro-badge" id="kcarProBadge">SIN CONFIGURAR</span></div>
  <div class="kcar-pro-control"><div><strong>Publicar tasas automáticamente</strong><small>Interruptor privado · estado guardado en Supabase</small></div><label class="kcar-pro-switch"><input id="kcarProToggle" type="checkbox" disabled aria-label="Publicación automática de Venezuela"><span></span></label></div>
  <div class="kcar-pro-grid"><div><label for="kcarProMargin">Descuento sobre Cotizave (%)</label><input id="kcarProMargin" type="number" min="0.1" max="30" step="0.1" value="6" oninput="kcBotsitoPreview()" disabled></div><div><label for="kcarProMaxMove">Variación máxima por actualización (%)</label><input id="kcarProMaxMove" type="number" min="0.1" max="5" step="0.1" value="2" disabled></div></div>
- <div class="kcar-pro-grid" id="kcBotsitoProfitGrid"><div><label for="kcBotsitoSellRate">Venta real de 1 USDT (VES)</label><input id="kcBotsitoSellRate" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Ej. 1074" oninput="kcBotsitoPreview()" disabled></div><div><label for="kcBotsitoMinProfit">Ganancia bruta mínima (%)</label><input id="kcBotsitoMinProfit" type="number" min="0" max="30" step="0.1" inputmode="decimal" value="5" oninput="kcBotsitoPreview()" disabled></div></div>
- <div class="kcar-note" id="kcBotsitoSellStamp">Sin precio real de venta registrado. Actualízalo solo cuando hayas confirmado la tasa.</div>
+ <div class="kcar-pro-grid" id="kcBotsitoProfitGrid"><div><label for="kcBotsitoSellRate">Venta real de 1 USDT (VES)</label><input id="kcBotsitoSellRate" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Ej. 1074" oninput="kcBotsitoPreview();kcBotsitoRefreshValidity()" disabled></div><div><label for="kcBotsitoMinProfit">Ganancia bruta mínima (%)</label><input id="kcBotsitoMinProfit" type="number" min="0" max="30" step="0.1" inputmode="decimal" value="5" oninput="kcBotsitoPreview()" disabled></div></div>
+ <div class="kcar-note" id="kcBotsitoSellStamp">Sin precio real de venta registrado.</div>
+ <div class="kcar-summary" id="kcBotsitoValidityStatus" role="status" aria-live="polite">Estado de confirmación: sin datos.</div>
+ <label class="kcar-note" style="display:flex;align-items:center;gap:10px;cursor:pointer;margin:10px 0"><input type="checkbox" id="kcBotsitoReconfirm" style="width:20px;height:20px;flex-shrink:0" disabled> He comprobado ahora la tasa de venta y quiero renovar su confirmación al guardar (aunque no cambie el número).</label>
  <div class="kcar-summary" id="kcBotsitoProfitPreview" aria-live="polite">Escribe la tasa real de venta y consulta Cotizave para estimar la ganancia de un envío de $100.</div>
  <button type="button" class="kcar-pro-save" id="kcarProSave" onclick="kcarProSaveSettings()" disabled>💾 Guardar configuración del Botsito</button>
  <div class="kcar-pro-message" id="kcarProMessage" role="status">Comprobando configuración segura…</div>
@@ -667,12 +669,32 @@ async function kcarFetchLive(refresh=false){
    Solo un proceso del servidor con validación verificable puede publicar. */
 let kcBotsitoSavedRate=null;
 let kcBotsitoReference=null;
+let kcBotsitoVerifiedAt=null;
+const KC_BOTSITO_VALIDITY_MS=30*60*1000;
 function kcBotsitoSetStamp(timestamp){
- const el=document.getElementById('kcBotsitoSellStamp');if(!el)return;
- if(!timestamp){el.textContent='Sin tasa de venta confirmada. El precio debe comprobarse antes de utilizarlo.';return;}
- const date=new Date(timestamp);
- el.textContent=Number.isFinite(date.getTime())?'Última confirmación manual: '+date.toLocaleString('es-VE')+'. Un precio antiguo no debe autorizar publicaciones.':'Fecha de confirmación inválida';
+ kcBotsitoVerifiedAt=timestamp||null;
+ kcBotsitoRefreshValidity();
 }
+function kcBotsitoRefreshValidity(){
+ const stamp=document.getElementById('kcBotsitoSellStamp');
+ const status=document.getElementById('kcBotsitoValidityStatus');
+ if(!stamp||!status)return;
+ const raw=document.getElementById('kcBotsitoSellRate')?.value.trim()||'';
+ const rate=raw===''?NaN:Number(raw);
+ if(!(rate>0)){
+  stamp.textContent='Última tasa de venta registrada: ninguna.';
+  status.textContent='⚠️ Sin una tasa de venta confirmada no se pueden autorizar nuevas publicaciones.';
+  return;
+ }
+ const date=kcBotsitoVerifiedAt?new Date(kcBotsitoVerifiedAt):null;
+ const validDate=date&&Number.isFinite(date.getTime());
+ const fmt=n=>n.toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});
+ stamp.textContent='Última tasa de venta registrada: '+fmt(rate)+' VES/USDT'+(validDate?' · Confirmada: '+date.toLocaleString('es-VE'):' · Sin fecha de confirmación');
+ const age=validDate?Date.now()-date.getTime():Infinity;
+ const fresh=validDate&&age>=-120000&&age<=KC_BOTSITO_VALIDITY_MS;
+ status.textContent=fresh?'✅ Vigente para evaluar publicaciones. Vence en aproximadamente '+Math.max(0,Math.ceil((KC_BOTSITO_VALIDITY_MS-age)/60000))+' min.':'⚠️ Requiere reconfirmación. La última tasa queda guardada, pero el servidor NO publicará cambios nuevos hasta confirmar una venta reciente. La tasa pública anterior se mantiene.';
+}
+setInterval(()=>{if(document.body.classList.contains('admin'))kcBotsitoRefreshValidity();},30000);
 function kcBotsitoPreview(){
  const el=document.getElementById('kcBotsitoProfitPreview');if(!el)return;
  const sell=Number(document.getElementById('kcBotsitoSellRate')?.value);
@@ -695,7 +717,7 @@ const KC_PRO_TABLE='kc_autorate_settings';
 const kcarProEl=id=>document.getElementById(id);
 function kcarProStatus(text){const e=kcarProEl('kcarProMessage');if(e)e.textContent=text;}
 function kcarProSetControls(active){
- ['kcarProToggle','kcarProMargin','kcarProMaxMove','kcBotsitoSellRate','kcBotsitoMinProfit','kcarProSave'].forEach(id=>{const e=kcarProEl(id);if(e)e.disabled=!active;});
+ ['kcarProToggle','kcarProMargin','kcarProMaxMove','kcBotsitoSellRate','kcBotsitoMinProfit','kcBotsitoReconfirm','kcarProSave'].forEach(id=>{const e=kcarProEl(id);if(e)e.disabled=!active;});
 }
 async function kcarProLoad(){
  if(!document.body.classList.contains('admin'))return;
@@ -716,6 +738,7 @@ async function kcarProLoad(){
   kcarProEl('kcBotsitoSellRate').value=data.sell_rate_ves_per_usdt??'';
   kcarProEl('kcBotsitoMinProfit').value=data.min_profit_percent??5;
   kcBotsitoSavedRate=data.sell_rate_ves_per_usdt===null?null:Number(data.sell_rate_ves_per_usdt);
+  kcarProEl('kcBotsitoReconfirm').checked=false;
   kcBotsitoSetStamp(data.sell_rate_verified_at);
   kcBotsitoPreview();
   const ready=!!data.commercial_publish_enabled;
@@ -768,8 +791,9 @@ async function kcarProSaveSettings(){
  if(enabled && !confirm('¿Guardar el modo ON? Solo el servidor puede publicar y la fuente debe seguir verificada. Esta pantalla no publica tasas.'))return;
  const desired={auto_publish_enabled:enabled,margin_percent:margin,max_change_percent:maxChange,min_profit_percent:minProfit,sell_rate_ves_per_usdt:sellRate};
  const saleChanged=(sellRate!==kcBotsitoSavedRate);
+ const reconfirm=!!kcarProEl('kcBotsitoReconfirm')?.checked;
  const savePayload={...desired,updated_at:new Date().toISOString()};
- if(saleChanged)savePayload.sell_rate_verified_at=sellRate===null?null:new Date().toISOString();
+ if(saleChanged||reconfirm)savePayload.sell_rate_verified_at=sellRate===null?null:new Date().toISOString();
  const button=kcarProEl('kcarProSave');
  kcarProSaving=true;
  kcarProSetControls(false);
@@ -815,14 +839,16 @@ async function kcarProSaveSettings(){
 
   if(kcarProSettingsMatch(saved,desired)){
    const check=await kcarProReadSaved().catch(()=>null);
-   if(check && kcarProSettingsMatch(check,desired)){
+   const timestampConfirmed=!(saleChanged||reconfirm)|| (check&&check.sell_rate_verified_at&&Math.abs(Date.now()-new Date(check.sell_rate_verified_at).getTime())<120000);
+   if(check && kcarProSettingsMatch(check,desired) && timestampConfirmed){
     kcarProStatus('✅ Configuración guardada y verificada en Supabase. Publicación '+(check.commercial_publish_enabled?'sujeta a controles del servidor.':'bloqueada: autorización comercial desactivada.'));
    }else{
-    kcarProStatus('✅ Supabase confirmó el guardado. No fue posible completar una segunda lectura de verificación.');
+    kcarProStatus('⚠️ Se guardaron los valores, pero no se pudo verificar la fecha de confirmación. El Botsito puede seguir bloqueando publicaciones hasta una confirmación válida.');
    }
    kcarProEl('kcarProBadge').textContent=enabled?'ON · '+(check?.commercial_publish_enabled?'AUTORIZACIÓN COMERCIAL':'PUBLICACIÓN BLOQUEADA'):'OFF · MANUAL';
    kcBotsitoSavedRate=sellRate;
    if(check)kcBotsitoSetStamp(check.sell_rate_verified_at);
+   kcarProEl('kcBotsitoReconfirm').checked=false;
    kcBotsitoPreview();
    kcarProLoaded=true;
    return;
